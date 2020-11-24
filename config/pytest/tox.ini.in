@@ -1,22 +1,17 @@
 # Generated from:
-# https://github.com/zopefoundation/meta/tree/master/config/pure-python-without-pypy
+# https://github.com/zopefoundation/meta/tree/master/config/pure-python
 [tox]
 envlist =
-    lint,
-    py27,
-    py35,
-    py36,
-    py37,
-    py38,
-    py39,
+    lint,%(python_environs)s%(additional_environs)s
     coverage
 
 [testenv]
 usedevelop = true
 deps =
-    zope.testrunner
+    pytest
+    pytest-rerunfailures
 commands =
-    zope-testrunner --test-path=src []
+    pytest src []
 extras = test
 
 [testenv:lint]
@@ -31,19 +26,18 @@ commands =
     check-manifest
     check-python-versions
 
-[flake8]
-doctests = 1
-
 [testenv:coverage]
 basepython = python3
 deps =
     coverage
     coverage-python-version
-    zope.testrunner
+    pytest
 commands =
-    coverage run -m zope.testrunner --test-path=src []
+    coverage erase
+    coverage run -m pytest src
+    coverage combine
     coverage html
-    coverage report -m {coverage_report_options}
+    coverage report -m %(coverage_report_options)s
 
 [coverage:run]
 branch = True

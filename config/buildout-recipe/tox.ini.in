@@ -1,16 +1,8 @@
 # Generated from:
-# https://github.com/zopefoundation/meta/tree/master/config/pure-python
+# https://github.com/zopefoundation/meta/tree/master/config/buildout-recipe
 [tox]
 envlist =
-    lint,
-    py27,
-    pypy2,
-    py35,
-    py36,
-    py37,
-    py38,
-    py39,
-    pypy3,
+    lint,%(python_environs)s%(additional_environs)s
     coverage
 
 [testenv]
@@ -33,35 +25,17 @@ commands =
     check-manifest
     check-python-versions
 
-[flake8]
-doctests = 1
-
 [testenv:coverage]
 basepython = python3
+setenv =
+    COVERAGE_PROCESS_START={{toxinidir}}/.coveragerc
 deps =
     coverage
     coverage-python-version
     zope.testrunner
 commands =
+    coverage erase
     coverage run -m zope.testrunner --test-path=src []
+    coverage combine
     coverage html
     coverage report -m {coverage_report_options}
-
-[coverage:run]
-branch = True
-plugins = coverage_python_version
-source = src
-
-[coverage:report]
-precision = 2
-exclude_lines =
-    pragma: no cover
-    pragma: nocover
-    except ImportError:
-    raise NotImplementedError
-    if __name__ == '__main__':
-    self.fail
-    raise AssertionError
-
-[coverage:html]
-directory = htmlcov

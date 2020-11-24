@@ -10,8 +10,45 @@ import sys
 
 META_HINT = """\
 # Generated from:
-# https://github.com/zopefoundation/meta/tree/master/config/{config_type}
+# https://github.com/gocept/meta/tree/master/config/{config_type}
 """
+TESTS_MATRIX_PYPY = """
+        - ["pypy2", "pypy"]
+        - ["pypy3", "pypy3"]"""
+TOX_INI_PYPY = """
+    pypy,
+    pypy3,"""
+
+MAX_PYTHON = (3, 9)
+
+
+def get_supported_versions(args):
+    """Get the supported versions from cli args."""
+    versions = [
+        (3, minor)
+        for minor in range(args.min_version[1], MAX_PYTHON[1] + 1)
+    ]
+    if args.support_legacy_python:
+        versions.insert(0, (2, 7))
+    return versions
+
+
+def get_tox_ini_versions(versions):
+    """Return the snippet to be inserted in tox.ini."""
+    env_versions = (
+        f"py{major}{minor}"
+        for major, minor in versions
+    )
+    return "".join(f'\n    {ver},' for ver in env_versions)
+
+
+def get_test_matrix_versions(versions):
+    """Return the snippet to be inserted in github actions tests.yml."""
+    env_versions = (
+        (f"{major}.{minor}", f"py{major}{minor}")
+        for major, minor in versions
+    )
+    return "".join(f'\n        - ["{v1}", "{v2}"]' for v1, v2 in env_versions)
 
 
 def call(*args, capture_output=False):
@@ -50,13 +87,43 @@ parser.add_argument(
     action='store_true',
     help='Prevent direct push.')
 parser.add_argument(
+    '--with-pypy',
+    dest='with_pypy',
+    action='store_true',
+    default=False,
+    help='Activate PyPy support if not already configured in .meta.cfg.')
+parser.add_argument(
     'type',
-     choices=[
+    choices=[
         'buildout-recipe',
         'pure-python',
-        'pure-python-without-pypy',
+        'pytest',
     ],
     help='type of the config to be used, see README.rst')
+parser.add_argument(
+    '--with-py27',
+    action='store_true', dest='support_legacy_python', default=False,
+)
+parser.add_argument(
+    '--with-py35', '--py3-only',
+    action='store_const', dest='min_version', default=(3, 6), const=(3, 5),
+)
+parser.add_argument(
+    '--with-py36-plus',
+    action='store_const', dest='min_version', const=(3, 6),
+)
+parser.add_argument(
+    '--with-py37-plus',
+    action='store_const', dest='min_version', const=(3, 7),
+)
+parser.add_argument(
+    '--with-py38-plus',
+    action='store_const', dest='min_version', const=(3, 8),
+)
+parser.add_argument(
+    '--with-py39-plus',
+    action='store_const', dest='min_version', const=(3, 9),
+)
 
 
 args = parser.parse_args()
@@ -90,20 +157,23 @@ meta_opts = meta_cfg['meta']
 meta_opts['template'] = config_type
 meta_opts['commit-id'] = call(
     'git', 'log', '-n1', '--format=format:%H', capture_output=True).stdout
+with_pypy = meta_opts.getboolean('with-pypy', False) or args.with_pypy
+meta_opts['with-pypy'] = str(with_pypy)
+support_legacy_python = meta_opts.getboolean(
+    'support_legacy_python', False) or args.support_legacy_python
+meta_opts['support_legacy_python'] = str(support_legacy_python)
 
 # Copy template files
 copy_with_meta(
-    default_path / 'setup.cfg', path / 'setup.cfg', config_type)
+    config_type_path / 'setup.cfg', path / 'setup.cfg', config_type)
 copy_with_meta(
     default_path / 'MANIFEST.in', path / 'MANIFEST.in', config_type)
 copy_with_meta(
     default_path / 'editorconfig', path / '.editorconfig', config_type)
 copy_with_meta(
     default_path / 'gitignore', path / '.gitignore', config_type)
-shutil.copy(config_type_path / 'tox.ini', path)
 workflows = path / '.github' / 'workflows'
 workflows.mkdir(parents=True, exist_ok=True)
-shutil.copy(config_type_path / 'tests.yml', workflows / 'tests.yml')
 
 add_coveragerc = False
 rm_coveragerc = False
@@ -115,18 +185,52 @@ if (config_type_path / 'coveragerc').exists():
 elif (path / '.coveragerc').exists():
     rm_coveragerc = True
 
+# Calculate and format supported versions
+versions = get_supported_versions(args)
+versions_config = get_test_matrix_versions(versions)
+python_environs = get_tox_ini_versions(versions)
 
-# Modify templates with meta options.
-tox_ini_path = path / 'tox.ini'
-with open(tox_ini_path) as f_:
+
+# Modify setup.cfg with meta options.
+with open(config_type_path / 'setup.cfg') as f_:
+    setup_cfg = f_.read()
+
+with open(path / 'setup.cfg', 'w') as f_:
+    universal_wheel = 0
+    if support_legacy_python:
+        universal_wheel = 1
+    f_.write(setup_cfg % dict(universal_wheel=universal_wheel))
+
+
+# Modify tox.ini with meta options.
+with open(config_type_path / 'tox.ini.in') as f_:
     tox_ini = f_.read()
 
-with open(tox_ini_path, 'w') as f_:
+with open(path / 'tox.ini', 'w') as f_:
     # initialize configuration if not already present
     fail_under = meta_opts.setdefault('fail-under', '0')
-    f_.write(tox_ini.format(
-        coverage_report_options=f'--fail-under={fail_under}'))
+    if with_pypy:
+        additional_environs = TOX_INI_PYPY
+    else:
+        additional_environs = ''
+    f_.write(tox_ini % dict(
+        coverage_report_options=f'--fail-under={fail_under}',
+        python_environs=python_environs,
+        additional_environs=additional_environs))
 
+# Modify GHA config with meta options.
+with open(default_path / 'tests.yml.in') as f_:
+    tests_yml = f_.read()
+
+with open(workflows / 'tests.yml', 'w') as f_:
+
+    if with_pypy:
+        additional_config = TESTS_MATRIX_PYPY
+    else:
+        additional_config = ''
+    f_.write(tests_yml % dict(
+             version_config=versions_config,
+             additional_config=additional_config))
 
 cwd = os.getcwd()
 branch_name = f'config-with-{config_type}'
@@ -142,7 +246,7 @@ try:
     with open('.meta.cfg', 'w') as meta_f:
         meta_f.write(
             '# Generated from:\n'
-            '# https://github.com/zopefoundation/meta/tree/master/config/'
+            '# https://github.com/gocept/meta/tree/master/config/'
             f'{config_type}\n')
         meta_cfg.write(meta_f)
 

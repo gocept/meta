@@ -1,7 +1,7 @@
 include *.rst
 include *.txt
 include buildout.cfg
-include tox.ini
+include *.ini
 include .coveragerc
 
 recursive-include docs *.bat

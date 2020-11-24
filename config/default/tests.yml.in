@@ -1,4 +1,4 @@
-# Generated from:
+  # Generated from:
 # https://github.com/zopefoundation/meta/tree/master/config/pure-python
 name: tests
 
@@ -15,13 +15,7 @@ jobs:
       matrix:
         config:
         # [Python version, tox env]
-        - ["3.8",   "lint"]
-        - ["2.7",   "py27"]
-        - ["3.5",   "py35"]
-        - ["3.6",   "py36"]
-        - ["3.7",   "py37"]
-        - ["3.8",   "py38"]
-        - ["3.9",   "py39"]
+        - ["3.8",   "lint"]%(version_config)s%(additional_config)s
         - ["3.8",   "coverage"]
 
     runs-on: ubuntu-latest
