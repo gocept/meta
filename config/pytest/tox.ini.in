@@ -8,9 +8,10 @@ envlist =
 [testenv]
 usedevelop = true
 deps =
-    zope.testrunner
+    pytest
+    pytest-rerunfailures
 commands =
-    zope-testrunner --test-path=src []
+    pytest src []
 extras = test
 
 [testenv:lint]
@@ -30,9 +31,11 @@ basepython = python3
 deps =
     coverage
     coverage-python-version
-    zope.testrunner
+    pytest
 commands =
-    coverage run -m zope.testrunner --test-path=src []
+    coverage erase
+    coverage run -m pytest src
+    coverage combine
     coverage html
     coverage report -m %(coverage_report_options)s
 

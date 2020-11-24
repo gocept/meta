@@ -1,0 +1,27 @@
+[run]
+source = {package_name}
+plugins = coverage_python_version
+branch = true
+parallel = true
+
+[paths]
+source =
+    src/
+    .tox/*/lib/python*/site-packages/
+    .tox/pypy*/site-packages/
+
+[report]
+precision = 2
+exclude_lines =
+    pragma: no cover
+    pragma: nocover
+    except ImportError:
+    raise NotImplementedError
+    if __name__ == '__main__':
+    self.fail
+    raise AssertionError
+omit = */generations/evolve*.py
+
+
+[html]
+directory = htmlcov
